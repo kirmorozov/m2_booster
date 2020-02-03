@@ -1,6 +1,20 @@
 #include <phpcpp.h>
 
 
+template <class Container>
+void split_string(const std::string& str, Container& cont,
+            char delim = ' ')
+{
+    std::size_t current, previous = 0;
+    current = str.find(delim);
+    while (current != std::string::npos) {
+        cont.push_back(str.substr(previous, current - previous));
+        previous = current + 1;
+        current = str.find(delim, previous);
+    }
+    cont.push_back(str.substr(previous, current - previous));
+}
+
 class DataObject : public Php::Base, public Php::ArrayAccess
 {
 protected:
@@ -62,6 +76,73 @@ public:
         return this;
     }
 
+    Php::Value getData(Php::Parameters &params) {
+        if(params.empty()) {
+            return _data;
+        }
+        std::string key = params[0];
+        if (key.find('/') != std::string::npos) {
+            return this->getDataByPath(key);
+        } else {
+            return this->_getData(key);
+        }
+
+            if (params[0].isArray()) {
+            std::vector<std::string> keys = params[0];
+            for(auto key : keys) {
+                _data.erase(key);
+            }
+        }
+        return this;
+    }
+
+    Php::Value getDataByPath(Php::Parameters &params) {
+        std::string key = params[0];
+        return this->getDataByPath(key);
+    }
+
+    Php::Value getDataByPath(std::string &path) {
+        std::vector<std::string> keys;
+        split_string(path, keys);
+
+        std::map<std::string, Php::Value> res_data = _data;
+        Php::Value data = _data;
+        for(auto key : keys) {
+            if(data.isArray() && (res_data.find(key) != res_data.end()) ) {
+                data = res_data[key];
+                if (data.isArray()) {
+                    res_data = data;
+                }
+//            } else if (data.isObject() && instanceof<DataObject>data){
+//                data = data->getDataByKey(key);
+//                if (data.isArray()) {
+//                    res_data = data;
+//                }
+            } else {
+                return nullptr;
+            }
+        }
+        return data;
+    }
+
+    Php::Value getDataByKey(Php::Parameters &params) {
+        std::string key = params[0];
+        return this->_getData(key);
+    }
+
+    Php::Value _getData(Php::Parameters &params) {
+        std::string key = params[0];
+        return this->_getData(key);
+    }
+
+    Php::Value _getData(std::string &key) {
+        if (_data.find(key) != _data.end()) {
+            return _data[key];
+        }
+        return nullptr;
+    }
+
+
     Php::Value _vall() {
         //int s = _data.size();
         return (int)_data.size();
@@ -95,7 +176,10 @@ public:
      */
     virtual Php::Value offsetGet(const Php::Value &key) override
     {
-        return _data[key];
+        if (_data.find(key) != _data.end()) {
+            return _data[key];
+        }
+        return nullptr;
     }
 
     /**
@@ -214,6 +298,18 @@ extern "C" {
 
         data_obj.method<&DataObject::unsetData>("unsetData", {
                 Php::ByVal("key", Php::Type::Null, false)
+        });
+
+        data_obj.method<&DataObject::getData>("getData", {
+                Php::ByVal("key", Php::Type::String, false)
+        });
+
+        data_obj.method<&DataObject::getDataByPath>("getDataByPath", {
+                Php::ByVal("key", Php::Type::String, true)
+        });
+
+        data_obj.method<&DataObject::getDataByKey>("getDataByKey", {
+                Php::ByVal("key", Php::Type::String, true)
         });
 
         data_obj.method<&DataObject::_vall>("_vall", {
