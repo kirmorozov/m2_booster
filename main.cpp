@@ -55,7 +55,7 @@ public:
             std::string name = params[0];
             Php::Value value = params[1];
             _data[name] = value;
-            // Php::out << name;
+            // Php::out << "setData: " << name << " val:" << _data.size() << std::endl;
         }
 
         return this;
@@ -165,7 +165,6 @@ public:
     {
         std::strstream res;
         // Traverse the string
-        char prevChar ='0';
         for(int i=0; i < str.length(); i++)
         {
             // Convert to lowercase if its
@@ -189,7 +188,6 @@ public:
                 // then just print
             else
                 res << str[i];
-            prevChar = str[i];
         }
         res << std::ends;
         return res.str();
@@ -204,7 +202,10 @@ public:
     }
 
     Php::Value hasData(Php::Parameters &params) {
-        return nullptr;
+        if (params.empty()) {
+            return (_data.size()>0);
+        }
+        return offsetExists(params[0]);
     }
 
     Php::Value toArray(Php::Parameters &params) {
@@ -223,6 +224,11 @@ public:
         return nullptr;
     }
 
+    Php::Value isEmpty(Php::Parameters &params) {
+        return _data.size() == 0;
+    }
+
+
     Php::Value __call(const char *name, Php::Parameters &params)
     {
         return nullptr;
@@ -238,6 +244,7 @@ public:
         return (int) _data.size();
     };
 
+
     /**
      *  Method from the Php::ArrayAccess interface that is
      *  called to check if a certain key exists in the map
@@ -248,6 +255,10 @@ public:
         return _data.find(key) != _data.end();
     }
 
+    Php::Value offsetExists(Php::Parameters &params) {
+        return offsetExists(params[0]);
+    }
+
     /**
      *  Set a member
      *  @param  key
@@ -255,6 +266,11 @@ public:
      */
     virtual void offsetSet(const Php::Value &key, const Php::Value &value) override {
         _data[key] = value;
+    }
+
+    Php::Value offsetSet(Php::Parameters &params) {
+        offsetSet(params[0], params[1]);
+        return nullptr;
     }
 
     /**
@@ -269,12 +285,20 @@ public:
         return nullptr;
     }
 
+    Php::Value offsetGet(Php::Parameters &params) {
+        return offsetGet(params[0]);
+    }
+
     /**
      *  Remove a member
      *  @param key
      */
     virtual void offsetUnset(const Php::Value &key) override {
         _data.erase(key);
+    }
+    Php::Value offsetUnset(Php::Parameters &params) {
+        offsetUnset(params[0]);
+        return nullptr;
     }
 };
 
@@ -424,6 +448,25 @@ PHPCPP_EXPORT void *get_module() {
     data_obj.method<&DataObject::toString>("toString", {
             Php::ByVal("format", Php::Type::String, false)
     });
+
+    data_obj.method<&DataObject::offsetExists>("offsetExists", {
+            Php::ByVal("format", Php::Type::String, true)
+    });
+
+    data_obj.method<&DataObject::offsetSet>("offsetSet", {
+            Php::ByVal("format", Php::Type::String, true),
+            Php::ByVal("format", Php::Type::Null, true)
+    });
+
+    data_obj.method<&DataObject::offsetGet>("offsetGet", {
+            Php::ByVal("format", Php::Type::String, true)
+    });
+
+    data_obj.method<&DataObject::offsetUnset>("offsetUnset", {
+            Php::ByVal("format", Php::Type::String, true)
+    });
+
+    data_obj.method<&DataObject::isEmpty>("isEmpty");
 
 
     data_obj.method<&DataObject::_underscore>("_underscore", Php::Protected, {
