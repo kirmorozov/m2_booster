@@ -1,5 +1,5 @@
 #include <phpcpp.h>
-
+#include <strstream>
 
 template<class Container>
 void split_string(const std::string &str, Container &cont,
@@ -47,6 +47,9 @@ public:
     Php::Value setData(Php::Parameters &params) {
         if (params.size() == 1 && params[0].isArray()) {
             _data = params[0];
+        }
+        if (params.size() == 1 && params[0].isString()) {
+            _data[params[0]] = nullptr;
         }
         if (params.size() == 2 && params[0].isString()) {
             std::string name = params[0];
@@ -139,6 +142,59 @@ public:
         return nullptr;
     }
 
+    std::string _toCamelCase(std::string str)
+    {
+        std::strstream res;
+        for(int i=0; i < str.length(); i++) {
+            // check for spaces in the sentence
+            if (str[i] == '_') {
+                // conversion into upper case
+                res << toupper(str[i + 1]);
+                continue;
+            }
+                // If not _, copy character
+            else
+                res << str[i];
+        }
+        // return string to main
+        res << std::ends;
+        return res.str();
+    }
+
+    std::string _fromCamelCase(std::string str)
+    {
+        std::strstream res;
+        // Traverse the string
+        char prevChar ='0';
+        for(int i=0; i < str.length(); i++)
+        {
+            // Convert to lowercase if its
+            // an uppercase character
+            if (str[i]>='A' && str[i]<='Z')
+            {
+                str[i]=str[i]+32;
+                // Print space before it
+                // if its an uppercase character
+                if (i != 0)
+                    res << "_";
+
+                // Print the character
+                res << str[i];
+            } else if (str[i] >='0' && str[i] <='9'
+                && i>0 && !(str[i-1] >='0' && str[i-1] <='9'))
+            {
+                res << "_" << str[i];
+            }
+                // if lowercase character
+                // then just print
+            else
+                res << str[i];
+            prevChar = str[i];
+        }
+        res << std::ends;
+        return res.str();
+    }
+
     Php::Value setDataUsingMethod(Php::Parameters &params) {
         return this;
     }
@@ -172,6 +228,10 @@ public:
         return nullptr;
     }
 
+    Php::Value _underscore(Php::Parameters &params) {
+        return _fromCamelCase(params[0]);
+    }
+
 
     Php::Value _vall() {
         //int s = _data.size();
@@ -194,7 +254,7 @@ public:
      *  @param  value
      */
     virtual void offsetSet(const Php::Value &key, const Php::Value &value) override {
-        _data[key] = value.stringValue();
+        _data[key] = value;
     }
 
     /**
@@ -336,7 +396,7 @@ PHPCPP_EXPORT void *get_module() {
 
     data_obj.method<&DataObject::setDataUsingMethod>("setDataUsingMethod", {
             Php::ByVal("key", Php::Type::String, true),
-            Php::ByVal("args", Php::Type::Array, false)
+            Php::ByVal("args", Php::Type::Null, false)
 
     });
 
@@ -362,6 +422,11 @@ PHPCPP_EXPORT void *get_module() {
     });
 
     data_obj.method<&DataObject::toString>("toString", {
+            Php::ByVal("format", Php::Type::String, false)
+    });
+
+
+    data_obj.method<&DataObject::_underscore>("_underscore", Php::Protected, {
             Php::ByVal("format", Php::Type::String, false)
     });
 
