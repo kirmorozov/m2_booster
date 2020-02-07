@@ -1,23 +1,78 @@
 #include <phpcpp.h>
 #include <strstream>
 
-template<class Container>
-void split_string(const std::string &str, Container &cont,
-                  char delim = ' ') {
-    std::size_t current, previous = 0;
-    current = str.find(delim);
-    while (current != std::string::npos) {
-        cont.push_back(str.substr(previous, current - previous));
-        previous = current + 1;
-        current = str.find(delim, previous);
-    }
-    cont.push_back(str.substr(previous, current - previous));
-}
-
 class DataObject : public Php::Base, public Php::ArrayAccess {
+    const std::string CLASS_NAME =  "\\Magento\\Framework\\DataObject";
 protected:
     std::map <std::string, Php::Value> _data;
     static std::map <std::string, std::string> _underscoreCache;
+
+    template<class Container>
+    void split_string(const std::string &str, Container &cont,
+                      char delim = ' ') {
+        std::size_t current, previous = 0;
+        current = str.find(delim);
+        while (current != std::string::npos) {
+            cont.push_back(str.substr(previous, current - previous));
+            previous = current + 1;
+            current = str.find(delim, previous);
+        }
+        cont.push_back(str.substr(previous, current - previous));
+    }
+
+
+    std::string _toCamelCase(std::string str)
+    {
+        std::strstream res;
+        for(int i=0; i < str.length(); i++) {
+            // check for spaces in the sentence
+            if (str[i] == '_') {
+                // conversion into upper case
+                res << toupper(str[i + 1]);
+                continue;
+            }
+                // If not _, copy character
+            else
+                res << str[i];
+        }
+        // return string to main
+        res << std::ends;
+        return res.str();
+    }
+
+    std::string _fromCamelCase(std::string str)
+    {
+        std::strstream res;
+        // Traverse the string
+        for(int i=0; i < str.length(); i++)
+        {
+            // Convert to lowercase if its
+            // an uppercase character
+            if (str[i]>='A' && str[i]<='Z')
+            {
+                str[i]=str[i]+32;
+                // Print space before it
+                // if its an uppercase character
+                if (i != 0)
+                    res << "_";
+
+                // Print the character
+                res << str[i];
+            } else if (str[i] >='0' && str[i] <='9'
+                       && i>0 && !(str[i-1] >='0' && str[i-1] <='9'))
+            {
+                res << "_" << str[i];
+            }
+                // if lowercase character
+                // then just print
+            else
+                res << str[i];
+        }
+        res << std::ends;
+        return res.str();
+    }
+
+
 public:
     DataObject() {};
 
@@ -76,24 +131,44 @@ public:
         return this;
     }
 
+
+
     Php::Value getData(Php::Parameters &params) {
+        Php::Value data;
         if (params.empty()) {
             return _data;
         }
         std::string key = params[0];
+        // Php::out << key << "<<key" <<std::endl;
         if (key.find('/') != std::string::npos) {
-            return this->getDataByPath(key);
+
+            data = getDataByPath(key);
         } else {
-            return this->_getData(key);
+            data = _getData(key);
         }
 
-        if (params[0].isArray()) {
-            std::vector <std::string> keys = params[0];
-            for (auto key : keys) {
-                _data.erase(key);
+        if(params.size() ==2 && !params[1].isNull()) {
+            if (data.isArray()) {
+                Php::Value nextData = data[params[1]];
+                data = nextData;
+            } else if (data.isString()) {
+                std::vector <std::string> new_data;
+                split_string(data, new_data, '\n');
+                int idx = params[1];
+                if (new_data.size() > idx) {
+                    data = new_data[idx];
+                } else {
+                    data = nullptr;
+                }
+            } else if (data.isObject() && data.instanceOf(CLASS_NAME)) {
+                auto * obj = data.implementation<DataObject>();
+                data = obj->offsetGet(params[1]);
+            } else {
+                data = nullptr;
             }
         }
-        return this;
+
+        return data;
     }
 
     Php::Value getDataByPath(Php::Parameters &params) {
@@ -102,26 +177,27 @@ public:
     }
 
     Php::Value getDataByPath(std::string &path) {
-        std::vector <std::string> keys;
-        split_string(path, keys);
+        std::vector<std::string> keys;
+        split_string(path, keys, '/');
+        auto it = keys.begin();
 
-        std::map <std::string, Php::Value> res_data = _data;
-        Php::Value data = _data;
-        for (auto key : keys) {
-            if (data.isArray() && (res_data.find(key) != res_data.end())) {
-                data = res_data[key];
-                if (data.isArray()) {
-                    res_data = data;
-                }
-//            } else if (data.isObject() && instanceof<DataObject>data){
-//                data = data->getDataByKey(key);
-//                if (data.isArray()) {
-//                    res_data = data;
-//                }
+        Php::Value data = _data[*it];
+        //Php::out << "Started: " << (*it) << std::endl;
+        for (++it;it != keys.end();++it) {
+            auto key = *it;
+            //Php::out <<"Next key"<< key << std::endl;
+            if (data.isArray()) {
+                //auto newData = data[key];
+                // Php::out <<"Next value"<< data[key] << std::endl;
+                data = data[key];
+            } else if (data.isObject() && data.instanceOf(CLASS_NAME)){
+                DataObject * obj = data.implementation<DataObject>();
+                data = obj->offsetGet(key);
             } else {
                 return nullptr;
             }
         }
+
         return data;
     }
 
@@ -142,58 +218,8 @@ public:
         return nullptr;
     }
 
-    std::string _toCamelCase(std::string str)
-    {
-        std::strstream res;
-        for(int i=0; i < str.length(); i++) {
-            // check for spaces in the sentence
-            if (str[i] == '_') {
-                // conversion into upper case
-                res << toupper(str[i + 1]);
-                continue;
-            }
-                // If not _, copy character
-            else
-                res << str[i];
-        }
-        // return string to main
-        res << std::ends;
-        return res.str();
-    }
-
-    std::string _fromCamelCase(std::string str)
-    {
-        std::strstream res;
-        // Traverse the string
-        for(int i=0; i < str.length(); i++)
-        {
-            // Convert to lowercase if its
-            // an uppercase character
-            if (str[i]>='A' && str[i]<='Z')
-            {
-                str[i]=str[i]+32;
-                // Print space before it
-                // if its an uppercase character
-                if (i != 0)
-                    res << "_";
-
-                // Print the character
-                res << str[i];
-            } else if (str[i] >='0' && str[i] <='9'
-                && i>0 && !(str[i-1] >='0' && str[i-1] <='9'))
-            {
-                res << "_" << str[i];
-            }
-                // if lowercase character
-                // then just print
-            else
-                res << str[i];
-        }
-        res << std::ends;
-        return res.str();
-    }
-
     Php::Value setDataUsingMethod(Php::Parameters &params) {
+        //Php::
         return this;
     }
 
