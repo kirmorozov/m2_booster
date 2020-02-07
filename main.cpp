@@ -272,15 +272,50 @@ public:
     }
 
     Php::Value toArray(Php::Parameters &params) {
-        return nullptr;
+        Php::Value val;
+        if (!params.empty())
+        {
+            val = params[0];
+        } else {
+            return _data;
+        }
+        return _toArray(val);
+
     }
+    Php::Value _toArray(Php::Value &keys) {
+        Php::Array result;
+
+        for (auto &iter : keys)
+        {
+            auto key = iter.second;
+            if (_data.find(key) != _data.end()) {
+                result[key] = _data[key];
+            } else {
+                result[key] = nullptr;
+            }
+            // output key and value
+            Php::out << iter.first << ": " << iter.second << std::endl;
+        }
+
+        return result;
+    }
+
 
     Php::Value toXml(Php::Parameters &params) {
         return nullptr;
     }
 
     Php::Value toJson(Php::Parameters &params) {
-        return nullptr;
+        Php::Value val;
+        if (!params.empty())
+        {
+            val = _toArray(params[0]);
+
+        } else {
+            val = _data;
+        }
+
+        return Php::call("json_encode", val);
     }
 
     Php::Value toString(Php::Parameters &params) {
@@ -527,11 +562,19 @@ PHPCPP_EXPORT void *get_module() {
             Php::ByVal("keys", Php::Type::Array, false)
     });
 
+    data_obj.method<&DataObject::toArray>("convertToArray", {
+            Php::ByVal("keys", Php::Type::Array, false)
+    });
+
     data_obj.method<&DataObject::toXml>("toXml", {
             Php::ByVal("keys", Php::Type::Array, false)
     });
 
     data_obj.method<&DataObject::toJson>("toJson", {
+            Php::ByVal("keys", Php::Type::Array, false)
+    });
+
+    data_obj.method<&DataObject::toJson>("convertToJson", {
             Php::ByVal("keys", Php::Type::Array, false)
     });
 
