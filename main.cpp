@@ -72,6 +72,40 @@ protected:
         return res.str();
     }
 
+    std::string _fromCamelCase(std::string_view str)
+    {
+        std::strstream res;
+        char tmpchar;
+        // Traverse the string
+        for(int i=0; i < str.length(); i++)
+        {
+            tmpchar = str[i]+32;
+            // Convert to lowercase if its
+            // an uppercase character
+            if (str[i]>='A' && str[i]<='Z')
+            {
+                //str[i]=str[i]+32;
+                // Print space before it
+                // if its an uppercase character
+                if (i != 0)
+                    res << "_";
+
+                // Print the character
+                res << tmpchar;
+            } else if (str[i] >='0' && str[i] <='9'
+                       && i>0 && !(str[i-1] >='0' && str[i-1] <='9'))
+            {
+                res << "_" << str[i];
+            }
+                // if lowercase character
+                // then just print
+            else
+                res << str[i];
+        }
+        res << std::ends;
+        return res.str();
+    }
+
 
 public:
     DataObject() {};
@@ -131,8 +165,6 @@ public:
         return this;
     }
 
-
-
     Php::Value getData(Php::Parameters &params) {
         Php::Value data;
         if (params.empty()) {
@@ -148,26 +180,31 @@ public:
         }
 
         if(params.size() ==2 && !params[1].isNull()) {
-            if (data.isArray()) {
-                Php::Value nextData = data[params[1]];
-                data = nextData;
-            } else if (data.isString()) {
-                std::vector <std::string> new_data;
-                split_string(data, new_data, '\n');
-                int idx = params[1];
-                if (new_data.size() > idx) {
-                    data = new_data[idx];
-                } else {
-                    data = nullptr;
-                }
-            } else if (data.isObject() && data.instanceOf(CLASS_NAME)) {
-                auto * obj = data.implementation<DataObject>();
-                data = obj->offsetGet(params[1]);
+            _getData_by_index(data, params[1]);
+        }
+
+        return data;
+    }
+
+    Php::Value _getData_by_index(Php::Value &data, Php::Value &index) {
+        if (data.isArray()) {
+            Php::Value nextData = data[index];
+            data = nextData;
+        } else if (data.isString()) {
+            std::vector <std::string> new_data;
+            split_string(data, new_data, '\n');
+            int idx = index;
+            if (new_data.size() > idx) {
+                data = new_data[idx];
             } else {
                 data = nullptr;
             }
+        } else if (data.isObject() && data.instanceOf(CLASS_NAME)) {
+            auto * obj = data.implementation<DataObject>();
+            data = obj->offsetGet(index);
+        } else {
+            data = nullptr;
         }
-
         return data;
     }
 
@@ -257,6 +294,33 @@ public:
 
     Php::Value __call(const char *name, Php::Parameters &params)
     {
+        auto action = std::string_view(name).substr(0,3);
+        auto key = std::string_view(name).substr(3);
+        Php::out << "CallKey" << key << std::endl;
+        if (action == "get") {
+//            Php::Parameters args;
+            auto ukey = _fromCamelCase(key);
+            //auto index = (params.size()>0) ? params[0] : nullptr;
+            auto data = _getData(ukey);
+            if(params.size() >0 && !params[0].isNull()) {
+                _getData_by_index(data, params[0]);
+            }
+//            Php::Parameters args{key,index};
+            return data; // this->getData();
+        } else if (action == "set") {
+            auto ukey = _fromCamelCase(key);
+            Php::out << "CallUKey" << ukey << std::endl;
+            _data[ukey] = (params.size()>0) ? params[0] : nullptr;
+            return this;
+        } else if (action == "uns") {
+            auto ukey = _fromCamelCase(key);
+            _data.erase(ukey);
+            return this;
+        } else if (action == "has") {
+            auto ukey = _fromCamelCase(key);
+            return (_data.find(ukey) != _data.end());
+        }
+
         return nullptr;
     }
 
