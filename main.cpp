@@ -264,7 +264,7 @@ public:
         std::string method = _toCamelCase(params[0]);
         method.insert(0, "set");
         Php::Array call({this, method});
-        Php::out << "setDataUsingMethod: " << method << std::endl;
+        // Php::out << "setDataUsingMethod: " << method << std::endl;
 
         if (params.size() > 1) {
             return call(params[1]);
@@ -276,7 +276,7 @@ public:
     Php::Value getDataUsingMethod(Php::Parameters &params) {
         std::string method = _toCamelCase(params[0]);
         method.insert(0, "get");
-        Php::out << "getDataUsingMethod: " << method << std::endl;
+        // Php::out << "getDataUsingMethod: " << method << std::endl;
         Php::Array call({this, method});
         return call();
     }
