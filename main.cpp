@@ -28,11 +28,16 @@ protected:
             // check for spaces in the sentence
             if (str[i] == '_') {
                 // conversion into upper case
-                res << toupper(str[i + 1]);
+                if (str[i]>='a' && str[i]<='z') {
+                    str[i + 1] = str[i + 1] - 32;
+                }
                 continue;
             }
                 // If not _, copy character
             else
+                if(i==0 ) {
+                    str[i] -= 32;
+                }
                 res << str[i];
         }
         // return string to main
@@ -256,12 +261,24 @@ public:
     }
 
     Php::Value setDataUsingMethod(Php::Parameters &params) {
-        //Php::
-        return this;
+        std::string method = _toCamelCase(params[0]);
+        method.insert(0, "set");
+        Php::Array call({this, method});
+        Php::out << "setDataUsingMethod: " << method << std::endl;
+
+        if (params.size() > 1) {
+            return call(params[1]);
+        } else {
+            return call();
+        }
     }
 
     Php::Value getDataUsingMethod(Php::Parameters &params) {
-        return nullptr;
+        std::string method = _toCamelCase(params[0]);
+        method.insert(0, "get");
+        Php::out << "getDataUsingMethod: " << method << std::endl;
+        Php::Array call({this, method});
+        return call();
     }
 
     Php::Value hasData(Php::Parameters &params) {
@@ -294,7 +311,7 @@ public:
                 result[key] = nullptr;
             }
             // output key and value
-            Php::out << iter.first << ": " << iter.second << std::endl;
+            // Php::out << iter.first << ": " << iter.second << std::endl;
         }
 
         return result;
@@ -331,7 +348,7 @@ public:
     {
         auto action = std::string_view(name).substr(0,3);
         auto key = std::string_view(name).substr(3);
-        Php::out << "CallKey" << key << std::endl;
+        // Php::out << "CallKey" << key << std::endl;
         if (action == "get") {
 //            Php::Parameters args;
             auto ukey = _fromCamelCase(key);
@@ -344,7 +361,7 @@ public:
             return data; // this->getData();
         } else if (action == "set") {
             auto ukey = _fromCamelCase(key);
-            Php::out << "CallUKey" << ukey << std::endl;
+            // Php::out << "CallUKey" << ukey << std::endl;
             _data[ukey] = (params.size()>0) ? params[0] : nullptr;
             return this;
         } else if (action == "uns") {
