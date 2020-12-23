@@ -5,6 +5,7 @@ class DataObject : public Php::Base, public Php::ArrayAccess {
     const std::string CLASS_NAME =  "\\Magento\\Framework\\DataObject";
 protected:
     std::map <std::string, Php::Value> _data;
+    bool _hasDataChanges = false;
     static std::map <std::string, std::string> _underscoreCache;
 
     template<class Container>
@@ -112,6 +113,37 @@ protected:
     }
 
 
+    std::string replace_string (const std::string& source,
+                          const std::string& toReplace,
+                          const std::string& replaceWith)
+    {
+        size_t pos = 0;
+        size_t cursor = 0;
+        int repLen = toReplace.length();
+        std::strstream builder;
+
+        do
+        {
+            pos = source.find(toReplace, cursor);
+
+            if (std::string::npos != pos)
+            {
+                //copy up to the match, then append the replacement
+                builder << source.substr(cursor, pos - cursor);
+                builder << replaceWith;
+
+                // skip past the match
+                cursor = pos + repLen;
+            }
+        }
+        while (std::string::npos != pos);
+
+        //copy the remainder
+        builder << source.substr(cursor);
+
+        return (builder.str());
+    }
+
 public:
     DataObject() {};
 
@@ -129,6 +161,8 @@ public:
 
     Php::Value addData(Php::Parameters &params) {
 
+//        Php::Value self(this);
+//        Php::Value data = self["_data"];
         for (auto &iter : params[0]) {
             _data[iter.first] = iter.second;
             // output key and value
@@ -160,6 +194,7 @@ public:
             _data.clear();
         } else if (params[0].isString()) {
             std::string key = params[0];
+            _hasDataChanges = true;
             _data.erase(key);
         } else if (params[0].isArray()) {
             std::vector <std::string> keys = params[0];
@@ -336,7 +371,34 @@ public:
     }
 
     Php::Value toString(Php::Parameters &params) {
-        return nullptr;
+        std::strstream res;
+        bool firstItem = true;
+        if (params.size() ==0 || params[0] == "" ) {
+            for(auto &iter :  _data) {
+                if (firstItem) {
+                    firstItem = false;
+                } else {
+                    res << ", ";
+                }
+                res << iter.second;
+            }
+        } else {
+            std::string format = params[0];
+            Php::Array matches;
+            //Php::call("preg_match_all", "/{{([a-z0-9_]+)}}/is", format, matches);
+//            Php::Array toReplace = matches[1];
+//            for(auto &it : toReplace) {
+//                std::string var = it.second;
+//                var += "}}";
+//                var.insert(0, "set");
+//                format = replace_string(format, var, it.second);
+//            }
+            res << format;
+
+
+        }
+        res << std::ends;
+        return res.str();
     }
 
     Php::Value isEmpty(Php::Parameters &params) {
@@ -386,6 +448,47 @@ public:
         return (int) _data.size();
     };
 
+
+    Php::Value serialize(Php::Parameters &params) {
+        int size =  params.size();
+        bool emptyKeys = false;
+        std::set<std::string> keys;
+        if (size < 1) {
+            emptyKeys = true;
+        } else {
+            for (auto &iter : params[0])
+            {
+                keys.insert(iter.second);
+            }
+        }
+
+        std::string valueSeparator = (size >= 2) ? std::string(params[1]) : "=";
+        std::string fieldSeparator = (size >= 3) ? std::string(params[2]) : " ";
+        std::string quote = (size >= 4) ? std::string(params[3]) : "\"";
+        std::strstream res;
+
+        int isFirst = true;
+        for (auto &iter : _data)
+        {
+            if (isFirst) {
+                isFirst = false;
+            } else {
+                res << fieldSeparator;
+            }
+
+            auto key = iter.first;
+            if (emptyKeys || keys.find(key) != keys.end()) {
+                res << key << valueSeparator << quote << iter.second << quote;
+            }
+        }
+        res << std::ends;
+
+        return res.str();
+    }
+
+    Php::Value hasDataChanges() {
+        return _hasDataChanges;
+    }
 
     /**
      *  Method from the Php::ArrayAccess interface that is
@@ -599,6 +702,15 @@ PHPCPP_EXPORT void *get_module() {
             Php::ByVal("format", Php::Type::String, false)
     });
 
+    data_obj.method<&DataObject::serialize>("serialize", {
+            Php::ByVal("keys", Php::Type::Array, false),
+            Php::ByVal("valueSeparator", Php::Type::String, false),
+            Php::ByVal("fieldSeparator", Php::Type::String, false),
+            Php::ByVal("quote", Php::Type::String, false)
+    });
+
+    data_obj.method<&DataObject::hasDataChanges>("hasDataChanges");
+
     data_obj.method<&DataObject::offsetExists>("offsetExists", {
             Php::ByVal("format", Php::Type::String, true)
     });
@@ -627,10 +739,22 @@ PHPCPP_EXPORT void *get_module() {
     data_obj.method<&DataObject::_vall>("_vall", {
     });
 
+//    data_obj.property("_data", Php::Protected);
+
 
     // add the class to the extension
     extension.add(std::move(counter));
     extension.add(std::move(data_obj));
+//    Php::Interface asd();
+
+//    extension.onRequest([]() {
+//
+//        // re-initialize the counter
+//        // Php::eval("define('SOME_CONSTANT',123123);");
+//        Php::define("DYNAMIC_CONSTANT", 12345);
+////        Php::eval("namespace OK { class OK {}}");
+//    });
+
 
     // return the extension
     return extension;
