@@ -1,12 +1,15 @@
 #include <phpcpp.h>
 #include <strstream>
+#include <unordered_map>
 
+using dataType = std::map<std::string, Php::Value>;
 class DataObject : public Php::Base, public Php::ArrayAccess {
-    const std::string CLASS_NAME =  "\\Magento\\Framework\\DataObject";
 protected:
-    std::map <std::string, Php::Value> _data;
+    Php::Value _self;
+    Php::Object _selfData;
+    dataType _data;
     bool _hasDataChanges = false;
-    static std::map <std::string, std::string> _underscoreCache;
+    static std::unordered_map <std::string, std::string> _underscoreCache;
 
     template<class Container>
     void split_string(const std::string &str, Container &cont,
@@ -145,15 +148,60 @@ protected:
     }
 
 public:
-    DataObject() {};
+    inline static const std::string CLASS_NAME =  "Magento\\Framework\\DataObject";
+    class _DataWrapper: public Php::Base, public Php::ArrayAccess {
+    protected:
+        dataType* _dataRef;
+    public:
+        inline static const std::string CLASS_NAME =  "Magento\\Framework\\DataObject\\__wrapper";
 
-    virtual ~DataObject() {};
+        _DataWrapper(dataType* ref) {
+            _dataRef = ref;
+        }
+
+        virtual ~_DataWrapper() {}
+
+        bool offsetExists(const Php::Value &key) {
+            return (_dataRef->find(key) != _dataRef->end());
+        }
+
+        void offsetSet(const Php::Value &key, const Php::Value &value)  {
+            (*_dataRef)[key] = value;
+        }
+
+        Php::Value offsetGet(const Php::Value &key) {
+            if (_dataRef->find(key) != _dataRef->end()) {
+                return (*_dataRef)[key];
+            }
+            return nullptr;
+        }
+
+        void offsetUnset(const Php::Value &key) {
+            _dataRef->erase(key);
+        }
+
+    };
+    _DataWrapper* _data_wrapper;
+
+    DataObject() {
+        _data_wrapper = new _DataWrapper(&_data);
+    };
+
+
+
+    virtual ~DataObject() {
+//        delete _data_wrapper;
+    };
 
     /**
      *  php "constructor"
      *  @param  params
      */
     void __construct(Php::Parameters &params) {
+        _self = Php::Value(this);
+        _selfData = Php::Object(_DataWrapper::CLASS_NAME.c_str(), _data_wrapper);
+//        _self["_data"] = _selfData;
+
         if (!params.empty()) {
             _data = params[0];
         } //_value = params[0];
@@ -165,8 +213,6 @@ public:
 //        Php::Value data = self["_data"];
         for (auto &iter : params[0]) {
             _data[iter.first] = iter.second;
-            // output key and value
-            // Php::out << iter.first << ": " << iter.second << std::endl;
         }
 
         return this;
@@ -545,54 +591,33 @@ public:
         offsetUnset(params[0]);
         return nullptr;
     }
-};
 
-/**
- *  Counter class that can be used for counting
- */
-class Counter : public Php::Base {
-private:
-    /**
-     *  The internal value
-     *  @var    int
-     */
-    int _value = 0;
-
-public:
-    /**
-     *  C++ constructor and destructor
-     */
-    Counter() {}
-
-    virtual ~Counter() {}
-
-    /**
-     *  Increment operation
-     *  This method gets one optional parameter holding the change
-     *  @param  int     Optional increment value
-     *  @return int     New value
-     */
-    Php::Value increment(Php::Parameters &params) {
-        return _value += params.empty() ? 1 : (int) params[0];
+    void __set(const Php::Value &key, const Php::Value &value) {
+        std::string k = key;
+        if (k == "_data") {
+            ___set_data(value);
+        } else {
+            _data[key] = value;
+        }
     }
 
-    /**
-     *  Decrement operation
-     *  This method gets one optional parameter holding the change
-     *  @param  int     Optional decrement value
-     *  @return int     New value
-     */
-    Php::Value decrement(Php::Parameters &params) {
-        return _value -= params.empty() ? 1 : (int) params[0];
+    Php::Value __get(const Php::Value &key)
+    {
+        std::string k = key;
+        return _getData(k);
     }
 
-    /**
-     *  Method to retrieve the current value
-     *  @return int
-     */
-    Php::Value value() const {
-        return _value;
+    void ___set_data(const Php::Value &value) {
+        _data.clear();
+        for (auto &iter : value) {
+            _data[iter.first] = iter.second;
+        }
     }
+
+    Php::Value ___get_data() {
+        return _selfData;
+    }
+
 };
 
 /**
@@ -612,26 +637,12 @@ PHPCPP_EXPORT void *get_module() {
     // for the entire duration of the process (that's why it's static)
     static Php::Extension extension("morozov_m2_booster", "1.0");
 
-    // @todo    add your own functions, classes, namespaces to the extension
-    // description of the class so that PHP knows which methods are accessible
-    Php::Class <Counter> counter("Some\\Counter");
-
-    // register the increment method, and specify its parameters
-    counter.method<&Counter::increment>("increment", {
-            Php::ByVal("change", Php::Type::Numeric, false)
-    });
-
-    // register the decrement, and specify its parameters
-    counter.method<&Counter::decrement>("decrement", {
-            Php::ByVal("change", Php::Type::Numeric, false)
-    });
-
-    // register the value method
-    counter.method<&Counter::value>("value", {});
-
     //Php::Namespace myNamespace("myNamespace");
 
-    Php::Class <DataObject> data_obj("Magento\\Framework\\DataObject");
+    Php::Class <DataObject::_DataWrapper> data_obj_wrapper((DataObject::_DataWrapper::CLASS_NAME).c_str());
+    extension.add(std::move(data_obj_wrapper));
+
+    Php::Class <DataObject> data_obj((DataObject::CLASS_NAME).c_str());
     data_obj.method<&DataObject::__construct>("__construct", {
             Php::ByVal("arr", Php::Type::Array, false)
     });
@@ -712,20 +723,20 @@ PHPCPP_EXPORT void *get_module() {
     data_obj.method<&DataObject::hasDataChanges>("hasDataChanges");
 
     data_obj.method<&DataObject::offsetExists>("offsetExists", {
-            Php::ByVal("format", Php::Type::String, true)
+            Php::ByVal("key", Php::Type::String, true)
     });
 
     data_obj.method<&DataObject::offsetSet>("offsetSet", {
-            Php::ByVal("format", Php::Type::String, true),
-            Php::ByVal("format", Php::Type::Null, true)
+            Php::ByVal("key", Php::Type::String, true),
+            Php::ByVal("value", Php::Type::Null, true)
     });
 
     data_obj.method<&DataObject::offsetGet>("offsetGet", {
-            Php::ByVal("format", Php::Type::String, true)
+            Php::ByVal("key", Php::Type::String, true)
     });
 
     data_obj.method<&DataObject::offsetUnset>("offsetUnset", {
-            Php::ByVal("format", Php::Type::String, true)
+            Php::ByVal("key", Php::Type::String, true)
     });
 
     data_obj.method<&DataObject::isEmpty>("isEmpty");
@@ -739,11 +750,10 @@ PHPCPP_EXPORT void *get_module() {
     data_obj.method<&DataObject::_vall>("_vall", {
     });
 
-//    data_obj.property("_data", Php::Protected);
-
+//    data_obj.property("_data", nullptr, Php::Protected);
+//    data_obj.property("_data", &DataObject::___get_data, &DataObject::___set_data);
 
     // add the class to the extension
-    extension.add(std::move(counter));
     extension.add(std::move(data_obj));
 //    Php::Interface asd();
 
