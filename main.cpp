@@ -3,13 +3,16 @@
 #include <unordered_map>
 
 using dataType = std::map<std::string, Php::Value>;
-class DataObject : public Php::Base, public Php::ArrayAccess {
+
+static std::map <std::string, std::string> _underscoreCache;
+
+class DataObject : public Php::Base, public Php::ArrayAccess, public Php::PropertyPtrPtr {
 protected:
     Php::Value _self;
     Php::Object _selfData;
     dataType _data;
     bool _hasDataChanges = false;
-    static std::unordered_map <std::string, std::string> _underscoreCache;
+
 
     template<class Container>
     void split_string(const std::string &str, Container &cont,
@@ -51,6 +54,9 @@ protected:
 
     std::string _fromCamelCase(std::string str)
     {
+        auto it = _underscoreCache.find(str);
+        if (it != _underscoreCache.end()) return it->second;
+
         std::strstream res;
         // Traverse the string
         for(int i=0; i < str.length(); i++)
@@ -78,7 +84,8 @@ protected:
                 res << str[i];
         }
         res << std::ends;
-        return res.str();
+        _underscoreCache[str] = res.str();
+        return _underscoreCache[str];
     }
 
     std::string _fromCamelCase(std::string_view str)
@@ -203,7 +210,8 @@ public:
 //        _self["_data"] = _selfData;
 
         if (!params.empty()) {
-            _data = params[0];
+            ___set_data(params[0]);
+//            _data = params[0];
         } //_value = params[0];
     };
 
@@ -220,7 +228,8 @@ public:
 
     Php::Value setData(Php::Parameters &params) {
         if (params.size() == 1 && params[0].isArray()) {
-            _data = params[0];
+            ___set_data(params[0]);
+//            _data = params[0];
         }
         if (params.size() == 1 && params[0].isString()) {
             _data[params[0]] = nullptr;
@@ -455,7 +464,7 @@ public:
     Php::Value __call(const char *name, Php::Parameters &params)
     {
         auto action = std::string_view(name).substr(0,3);
-        auto key = std::string_view(name).substr(3);
+        auto key = std::string(name).substr(3);
         // Php::out << "CallKey" << key << std::endl;
         if (action == "get") {
 //            Php::Parameters args;
@@ -592,26 +601,35 @@ public:
         return nullptr;
     }
 
-    void __set(const Php::Value &key, const Php::Value &value) {
-        std::string k = key;
-        if (k == "_data") {
-            ___set_data(value);
-        } else {
-            _data[key] = value;
-        }
-    }
+//    void __set(const Php::Value &key, const Php::Value &value) {
+//        std::string k = key;
+//        if (k == "_data") {
+//            ___set_data(value);
+//        } else {
+//            _data[key] = value;
+//        }
+//    }
+//
+//    Php::Value __get(const Php::Value &key)
+//    {
+//        std::string k = key;
+//        return _getData(k);
+//    }
 
-    Php::Value __get(const Php::Value &key)
+    Php::Value getPropertyPtrPtr(const Php::Value &member, int type)
     {
-        std::string k = key;
-        return _getData(k);
+        if ("_data" == member) {
+            return  _selfData;
+        }
+
+        return nullptr;
     }
 
     void ___set_data(const Php::Value &value) {
-        _data.clear();
-        for (auto &iter : value) {
-            _data[iter.first] = iter.second;
-        }
+        _data = value;
+//        for (auto &iter : value) {
+//            _data[iter.first] = iter.second;
+//        }
     }
 
     Php::Value ___get_data() {
@@ -751,7 +769,7 @@ PHPCPP_EXPORT void *get_module() {
     });
 
 //    data_obj.property("_data", nullptr, Php::Protected);
-//    data_obj.property("_data", &DataObject::___get_data, &DataObject::___set_data);
+    data_obj.property("_data", &DataObject::___get_data, &DataObject::___set_data);
 
     // add the class to the extension
     extension.add(std::move(data_obj));

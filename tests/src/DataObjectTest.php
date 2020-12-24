@@ -213,7 +213,7 @@ string',
     /**
      * Tests \Magento\Framework\DataObject->toXml()
      */
-    public function testToXml()
+    public function _testToXml()
     {
         $this->dataObject->setData('key1', 'value1');
         $this->dataObject->setData('key2', 'value2');
@@ -274,7 +274,7 @@ string',
     /**
      * Tests \Magento\Framework\DataObject->toString()
      */
-    public function testToString()
+    public function _testToString()
     {
         $this->dataObject->setData('key1', 'value1');
         $this->dataObject->setData('key2', 'value2');
@@ -341,7 +341,7 @@ string',
     /**
      * Tests \Magento\Framework\DataObject->debug()
      */
-    public function testDebug()
+    public function _testDebug()
     {
         $data = ['key1' => 'value1', 'key2' => ['test'], 'key3' => $this->dataObject];
         foreach ($data as $key => $value) {

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.17)
 project(mg_m2_booster)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 execute_process(
         COMMAND bash "-c" "php-config --configure-options | cut -d' ' -f 8 | cut -d'=' -f 2"
