@@ -4,7 +4,7 @@ This extension (mostly) implements Magento 2(c) DataObject or Varien_Object in M
 
 Implementation is working via a bit customised [PHP-CPP](http://www.php-cpp.com/). 
 
-I added implementations for `$object->array['proppery'] = assignment`.
+I added implementations for `$object->array['propery'] = assignment`.
 https://github.com/kirmorozov/PHP-CPP
 
 It operates directly with PHP internals. 
