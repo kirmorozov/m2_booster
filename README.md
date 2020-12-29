@@ -2,7 +2,12 @@ M2 Booster
 ==========
 This extension (mostly) implements Magento 2(c) DataObject or Varien_Object in Magento 1.
 
-Implementation is working via [PHP-CPP](http://www.php-cpp.com/). It operated directly with PHP internals. 
+Implementation is working via a bit customised [PHP-CPP](http://www.php-cpp.com/). 
+
+I added implementations for `$object->array['proppery'] = assignment`.
+https://github.com/kirmorozov/PHP-CPP
+
+It operates directly with PHP internals. 
 
 
 
